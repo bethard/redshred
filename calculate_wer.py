@@ -10,10 +10,17 @@ class RemovePunctuation(jiwer.AbstractTransform):
     def process_string(self, s: str):
         return regex.sub(r"\p{P}", "", s)
 
+
 # remove some differences that we don't care about for comparisons
 transform = jiwer.Compose([
     jiwer.ToLowerCase(),
     RemovePunctuation(),
+    jiwer.RemoveSpecificWords([
+        "uh", "um", "ah", "hi", "alright", "all right", "well"]),
+    jiwer.SubstituteWords({
+        "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+        "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+        "check out": "checkout", "hard point": "hardpoint"}),
     jiwer.RemoveMultipleSpaces(),
     jiwer.Strip(),
     jiwer.SentencesToListOfWords(),
@@ -23,6 +30,8 @@ transform = jiwer.Compose([
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("json_path")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--cleaned", action="store_true")
     args = parser.parse_args()
 
 
@@ -33,49 +42,37 @@ if __name__ == "__main__":
         for item in json.load(json_file):
             filename = item['filename']
             expected = item['expected']
-            actual = item['actual']
-            cleaned = item['cleaned_actual']
+            actual = item['cleaned_actual'] if args.cleaned else item['actual']
             all_expected.append(expected)
             all_actual.append(actual)
-            all_cleaned_actual.append(cleaned)
 
-            message = textwrap.dedent("""\
-            {filename}
-            EXPECTED:      {expected!r}
-            ACTUAL:   {actual_wer:.2f} {actual!r}
-            CLEANED:  {cleaned_actual_wer:.2f} {cleaned!r}
-            """)
-            jiwer_kwargs = dict(truth=expected,
-                                truth_transform=transform,
-                                hypothesis_transform=transform)
-            print(message.format(
-                filename=filename,
-                expected=transform(expected),
-                actual=transform(actual),
-                cleaned=transform(cleaned),
-                actual_wer=jiwer.wer(
-                    hypothesis=actual, **jiwer_kwargs),
-                cleaned_actual_wer=jiwer.wer(
-                    hypothesis=cleaned, **jiwer_kwargs),
-            ))
-
-    jiwer_kwargs = dict(truth=all_expected,
+            if args.verbose:
+                message = textwrap.dedent("""\
+                {filename} WER={actual_wer:.2f}
+                EXPECTED: {expected!r}
+                ACTUAL:   {actual!r}
+                """)
+                print(message.format(
+                    filename=filename,
+                    expected=transform(expected),
+                    actual=transform(actual),
+                    actual_wer=jiwer.wer(
+                        hypothesis=actual,
+                        truth=expected,
                         truth_transform=transform,
-                        hypothesis_transform=transform)
+                        hypothesis_transform=transform),
+                ))
+
     message = textwrap.dedent("""\
     Overall:
-    ACTUAL  WER:  {actual[wer]:.2f}
-    CLEANED WER:  {cleaned[wer]:.2f}
-    ACTUAL  MER:  {actual[mer]:.2f}
-    CLEANED MER:  {cleaned[mer]:.2f}
-    ACTUAL  WIL:  {actual[wil]:.2f}
-    CLEANED WIL:  {cleaned[wil]:.2f}
-    ACTUAL  WIP:  {actual[wip]:.2f}    
-    CLEANED WIP:  {cleaned[wip]:.2f}
+    WER:  {actual[wer]:.2f}
+    MER:  {actual[mer]:.2f}
+    WIL:  {actual[wil]:.2f}
+    WIP:  {actual[wip]:.2f}
     """)
-    print(message.format(
-        actual=jiwer.compute_measures(
-            hypothesis=all_actual, **jiwer_kwargs),
-        cleaned=jiwer.compute_measures(
-            hypothesis=all_cleaned_actual, **jiwer_kwargs),
+    print(message.format(actual=jiwer.compute_measures(
+        hypothesis=all_actual,
+        truth=all_expected,
+        truth_transform=transform,
+        hypothesis_transform=transform),
     ))
