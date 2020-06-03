@@ -15,11 +15,12 @@ class RemovePunctuation(jiwer.AbstractTransform):
 transform = jiwer.Compose([
     jiwer.ToLowerCase(),
     RemovePunctuation(),
-    jiwer.RemoveSpecificWords([
-        "uh", "um", "ah", "hi", "alright", "all right", "well"]),
+    jiwer.SubstituteRegexes(
+        {r"\b(uh|um|ah|hi|alright|all right|well|kind of)\b": ""}),
     jiwer.SubstituteWords({
         "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
         "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+        "plus": "+", "minus": "-",
         "check out": "checkout", "hard point": "hardpoint"}),
     jiwer.RemoveMultipleSpaces(),
     jiwer.Strip(),
@@ -48,7 +49,7 @@ if __name__ == "__main__":
 
             if args.verbose:
                 message = textwrap.dedent("""\
-                {filename} WER={actual_wer:.2f}
+                {filename} WER={measures[wer]:.2f} MER={measures[mer]:.2f}
                 EXPECTED: {expected!r}
                 ACTUAL:   {actual!r}
                 """)
@@ -56,7 +57,7 @@ if __name__ == "__main__":
                     filename=filename,
                     expected=transform(expected),
                     actual=transform(actual),
-                    actual_wer=jiwer.wer(
+                    measures=jiwer.compute_measures(
                         hypothesis=actual,
                         truth=expected,
                         truth_transform=transform,
@@ -65,12 +66,12 @@ if __name__ == "__main__":
 
     message = textwrap.dedent("""\
     Overall:
-    WER:  {actual[wer]:.2f}
-    MER:  {actual[mer]:.2f}
-    WIL:  {actual[wil]:.2f}
-    WIP:  {actual[wip]:.2f}
+    WER:  {measures[wer]:.2f}
+    MER:  {measures[mer]:.2f}
+    WIL:  {measures[wil]:.2f}
+    WIP:  {measures[wip]:.2f}
     """)
-    print(message.format(actual=jiwer.compute_measures(
+    print(message.format(measures=jiwer.compute_measures(
         hypothesis=all_actual,
         truth=all_expected,
         truth_transform=transform,
